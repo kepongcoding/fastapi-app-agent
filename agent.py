@@ -93,7 +93,7 @@ db: Dict[int, UserMessage] = {}
 
 
 # ---------------- Routes ---------------- #
-@app.post("/coliving-ai-os/api/raw-user-message/", dependencies=[Depends(get_api_key)])
+@app.post("/coliving-ai-os/api/raw-user-message", dependencies=[Depends(get_api_key)])
 async def post_user_message(message: UserMessage):
     """POST a new user message"""
     message.receive_At = int(time.time() * 1000)  # ms
@@ -142,4 +142,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 4001))
     host = os.environ.get("HOST", "127.0.0.1")
     uvicorn.run("agent:app", host=host, port=port, reload=True)
+
 
