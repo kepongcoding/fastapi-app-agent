@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI OS Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; display: flex; height: 100vh; }
+    /* Sidebar */
+    .sidebar {
+      height: 100%; width: 220px; background: #343a40; color: white;
+      display: flex; flex-direction: column; padding-top: 20px; transition: width 0.3s;
+    }
+    .sidebar.collapsed { width: 60px; }
+    .sidebar h2 { margin: 0 0 20px 16px; font-size: 18px; }
+    .sidebar button {
+      background: none; border: none; color: white; text-align: left;
+      padding: 12px 16px; cursor: pointer; font-size: 14px; width: 100%;
+    }
+    .sidebar button:hover { background: #495057; }
+    .sidebar.collapsed button span { display: none; }
+    .sidebar.collapsed h2 { display: none; }
+
+    /* Main content */
+    .content { flex: 1; padding: 20px; overflow-y: auto; }
+    .hidden { display: none; }
+
+    /* Existing styles */
+    .summary { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+    .card { padding: 12px 16px; border-radius: 6px; background: #f8f9fa; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1; min-width: 150px; }
+    .card h2 { margin: 0; font-size: 18px; color: #333; }
+    .card p { margin: 5px 0 0; font-size: 16px; font-weight: bold; color: #007BFF; }
+    .latency-green { color: green !important; }
+    .latency-yellow { color: goldenrod !important; }
+    .latency-red { color: red !important; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f2f2f2; text-align: left; }
+    tr:nth-child(even) { background: #fafafa; }
+    .btn { padding: 6px 12px; margin: 5px 4px 10px 0; font-size: 12px; background: #007BFF; color: white; border: none; cursor: pointer; border-radius: 4px; }
+    .btn:hover { background: #0056b3; }
+    #reset { background: #dc3545; }
+    #reset:hover { background: #a71d2a; }
+    .pagination { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+    .pagination span { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <h2>Menu</h2>
+    <button onclick="showSection('mainSection')">🏠 <span>Main</span></button>
+    <button onclick="showSection('messageViewer')">📩 <span>Message Viewer</span></button>
+    <button onclick="showSection('databaseConfig')">🗄️ <span>Database</span></button>
+    <button onclick="toggleSidebar()">⬅️ <span>Collapse</span></button>
+  </div>
+
+  <!-- Main content -->
+  <div class="content">
+    
+    <!-- MAIN SECTION -->
+    <div id="mainSection">
+      <h1>Main Dashboard</h1>
+      <div class="card"><h2>Server Status</h2><p id="serverStatus">Checking...</p></div>
+      <button id="refreshMain" class="btn">🔄 Refresh</button>
+    </div>
+
+    <!-- MESSAGE VIEWER -->
+    <div id="messageViewer" class="hidden">
+      <h1>Message Viewer</h1>
+
+      <!-- Summary Cards -->
+      <div class="summary">
+        <div class="card"><h2>Total Payload</h2><p id="totalPayload">0</p></div>
+        <div class="card"><h2>Server Status</h2><p id="serverStatusMV">Checking...</p></div>
+        <div class="card"><h2>Agent Frequency</h2><p id="agentFrequency">0</p></div>
+        <div class="card"><h2>User Frequency</h2><p id="userFrequency">0</p></div>
+        <div class="card"><h2>Payload Latency</h2><p id="payloadLatency">0 ms</p></div>
+      </div>
+
+      <button id="refresh" class="btn">🔄 Refresh</button>
+      <button id="reset" class="btn">🗑️ Reset</button>
+
+      <!-- Rows per page selector -->
+      <div style="margin-top:10px;">
+        <label for="rowsPerPage">Rows per page:</label>
+        <input type="number" id="rowsPerPage" value="10" min="1" style="width:60px;">
+      </div>
+
+      <table id="messagesTable">
+        <thead>
+          <tr>
+            <th>Payload ID</th>
+            <th>ID</th>
+            <th>User</th>
+            <th>Role</th>
+            <th>Content</th>
+            <th>Generated At</th>
+            <th>Send At</th>
+            <th>Receive At</th>
+            <th>Time Difference (ms)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <!-- Pagination controls -->
+      <div class="pagination">
+        <button id="prevPage" class="btn">⬅️ Prev</button>
+        <span id="pageInfo">Page 1</span>
+        <button id="nextPage" class="btn">Next ➡️</button>
+      </div>
+    </div>
+
+    <!-- DATABASE CONFIG -->
+    <div id="databaseConfig" class="hidden">
+      <h1>Database Configuration</h1>
+      <label for="dbPath">Database File Path:</label><br>
+      <input type="text" id="dbPath" value="C:\\Users\\User\\TARUMT\\project\\uv-project-1\\api-app\\database\\test.db" style="width:80%; padding:6px;"><br><br>
+      <button class="btn" onclick="saveDbConfig()">💾 Save</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://127.0.0.1:4001/coliving-ai-os/api/raw-user-message/";
+    const HEALTH_URL = "http://127.0.0.1:4001/coliving-ai-os/api/health";
+    const API_KEY = "supersecretapikey123";
+
+    let allMessages = [];
+    let currentPage = 1;
+
+    function showSection(id) {
+      document.querySelectorAll(".content > div").forEach(div => div.classList.add("hidden"));
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    function toggleSidebar() {
+      document.getElementById("sidebar").classList.toggle("collapsed");
+    }
+
+    async function fetchMessages() {
+      try {
+        const response = await fetch(API_URL, {
+          method: "GET",
+          headers: { "Content-Type": "application/json", "X-API-KEY": API_KEY }
+        });
+        if (!response.ok) throw new Error(`Failed: ${response.status}`);
+        const data = await response.json();
+        allMessages = data;
+        currentPage = 1;
+        renderTable();
+        updateSummary(data);
+      } catch (err) {
+        console.error("Error fetching messages:", err);
+      }
+    }
+
+    async function fetchHealth() {
+      try {
+        const response = await fetch(HEALTH_URL);
+        if (!response.ok) {
+          document.getElementById("serverStatus").textContent = "Down ❌";
+          document.getElementById("serverStatusMV").textContent = "Down ❌";
+          return;
+        }
+        const health = await response.json();
+        const statusText = health.status === 1 ? "Activated ✅" : "Down ❌";
+        document.getElementById("serverStatus").textContent = statusText;
+        document.getElementById("serverStatusMV").textContent = statusText;
+      } catch {
+        document.getElementById("serverStatus").textContent = "Down ❌";
+        document.getElementById("serverStatusMV").textContent = "Down ❌";
+      }
+    }
+
+    function formatUnixTimestamp(ts) {
+      if (!ts) return "-";
+      const date = ts.toString().length === 10 ? new Date(ts * 1000) : new Date(ts);
+      return date.toLocaleString();
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#messagesTable tbody");
+      tbody.innerHTML = "";
+      const rowsPerPage = parseInt(document.getElementById("rowsPerPage").value) || 10;
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      const pageMessages = allMessages.slice(start, end);
+
+      pageMessages.forEach((msg, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${start + index}</td>
+          <td>${msg.id || "-"}</td>
+          <td>${msg.sender_id || "-"}</td>
+          <td>${msg.type || "-"}</td>
+          <td>${msg.content || "-"}</td>
+          <td>${formatUnixTimestamp(msg.ts)}</td>
+          <td>${formatUnixTimestamp(msg.send_At) || "-"}</td>
+          <td>${formatUnixTimestamp(msg.receive_At) || "-"}</td>
+          <td>${msg.tsDifference ?? "-"}</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      const totalPages = Math.ceil(allMessages.length / rowsPerPage) || 1;
+      document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
+    }
+
+    function updateSummary(messages) {
+      document.getElementById("totalPayload").textContent = messages.length;
+      const agentCount = messages.filter(msg => msg.sender_id === "bot").length;
+      const userCount = messages.length - agentCount;
+      document.getElementById("agentFrequency").textContent = agentCount;
+      document.getElementById("userFrequency").textContent = userCount;
+
+      let latency_stats = { total_ms: 0, count: 0 };
+      messages.forEach(msg => {
+        if (msg.tsDifference !== undefined && msg.tsDifference !== null) {
+          latency_stats.total_ms += msg.tsDifference;
+          latency_stats.count++;
+        }
+      });
+
+      const avgLatency = latency_stats.count > 0
+        ? Math.round((latency_stats.total_ms / latency_stats.count) * 100) / 100
+        : 0;
+
+      const latencyElem = document.getElementById("payloadLatency");
+      latencyElem.textContent = `${avgLatency} ms`;
+      latencyElem.className = "";
+      if (avgLatency < 10) latencyElem.classList.add("latency-green");
+      else if (avgLatency <= 60) latencyElem.classList.add("latency-yellow");
+      else latencyElem.classList.add("latency-red");
+    }
+
+    function resetTable() {
+      allMessages = [];
+      currentPage = 1;
+      renderTable();
+      document.getElementById("totalPayload").textContent = 0;
+      document.getElementById("agentFrequency").textContent = 0;
+      document.getElementById("userFrequency").textContent = 0;
+      document.getElementById("payloadLatency").textContent = "0 ms";
+    }
+
+    function saveDbConfig() {
+      const path = document.getElementById("dbPath").value;
+      alert("Database path saved: " + path);
+      // could be stored in localStorage or sent to backend
+      localStorage.setItem("dbPath", path);
+    }
+
+    // Event listeners
+    document.getElementById("refresh").addEventListener("click", () => { fetchMessages(); fetchHealth(); });
+    document.getElementById("refreshMain").addEventListener("click", fetchHealth);
+    document.getElementById("reset").addEventListener("click", resetTable);
+    document.getElementById("rowsPerPage").addEventListener("change", () => { currentPage = 1; renderTable(); });
+    document.getElementById("prevPage").addEventListener("click", () => { if (currentPage > 1) { currentPage--; renderTable(); } });
+    document.getElementById("nextPage").addEventListener("click", () => {
+      const rowsPerPage = parseInt(document.getElementById("rowsPerPage").value) || 10;
+      const totalPages = Math.ceil(allMessages.length / rowsPerPage);
+      if (currentPage < totalPages) { currentPage++; renderTable(); }
+    });
+
+    // Auto-load on startup
+    fetchMessages();
+    fetchHealth();
+    showSection("mainSection");
+  </script>
+</body>
+</html>
