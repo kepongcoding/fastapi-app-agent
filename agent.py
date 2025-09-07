@@ -9,6 +9,9 @@ from datetime import datetime
 import os
 import uvicorn
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------- Logging Setup ---------------- #
 logging.basicConfig(
@@ -18,10 +21,9 @@ logging.basicConfig(
 logger = logging.getLogger("coliving-ai-os")
 
 # ---------------- Security Setup ---------------- #
-API_KEY = "supersecretapikey123"  # store securely (e.g., env var, vault)
-API_KEY_NAME = "X-API-KEY"
+API_KEY = os.getenv("API_KEY")
+API_KEY_NAME = os.getenv("API_KEY_NAME")
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
-
 
 def get_api_key(api_key: str = Security(api_key_header)):
     if api_key != API_KEY:
@@ -140,3 +142,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 4001))
     host = os.environ.get("HOST", "127.0.0.1")
     uvicorn.run("agent:app", host=host, port=port, reload=True)
+
