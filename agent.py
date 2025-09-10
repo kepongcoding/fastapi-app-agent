@@ -120,7 +120,7 @@ async def fetch_user_message(message_id: int):
     return db[message_id]
 
 
-@app.get("/coliving-ai-os/api/raw-user-message/", dependencies=[Depends(get_api_key)])
+@app.get("/coliving-ai-os/api/raw-user-message", dependencies=[Depends(get_api_key)])
 async def fetch_messages(skip: int = 0, limit: int = 200):
     """GET paginated messages"""
     messages = list(db.values())
@@ -142,5 +142,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 4001))
     host = os.environ.get("HOST", "127.0.0.1")
     uvicorn.run("agent:app", host=host, port=port, reload=True)
+
 
 
